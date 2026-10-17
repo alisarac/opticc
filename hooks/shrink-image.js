@@ -5,7 +5,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { settings, dataDir } = require('./common');
+const { settings, dataDir, count } = require('./common');
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 
@@ -24,6 +24,12 @@ function scalePercent(w, h, minSide) {
   const long = Math.max(w, h);
   const pct = Math.round(100 * Math.max(long / 2, minSide) / long);
   return pct < 100 ? pct : null;
+}
+
+// Rough tokens Claude bills for an image: downscaled to a 1568 px long side, ~750 px² per token, capped.
+function imageTokens(w, h) {
+  const s = Math.min(1, 1568 / Math.max(w, h));
+  return Math.min(1600, w * h * s * s / 750);
 }
 
 // Only where Read needs no permission prompt anyway: the project and this
@@ -57,6 +63,7 @@ function shrink(input, now = Date.now()) {
     fs.chmodSync(copy, 0o600);
   }
   fs.writeFileSync(seen, '', { mode: 0o600 });
+  count('image', imageTokens(w, h) - imageTokens(w * pct / 100, h * pct / 100));
   const note = `[opticc] ${path.basename(file)} shown at ${pct}% (${w}x${h} → ~${Math.round(w * pct / 100)}x${Math.round(h * pct / 100)}). Read the same path again for full resolution.`;
   return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...input.tool_input, file_path: copy }, additionalContext: note } };
 }
@@ -70,4 +77,4 @@ if (require.main === module) {
     } catch { /* fail open: no ImageMagick, unreadable file, bad input */ }
   });
 }
-module.exports = { shrink, scalePercent };
+module.exports = { shrink, scalePercent, imageTokens };

@@ -5,7 +5,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { settings, dataDir } = require('./common');
+const { settings, dataDir, count } = require('./common');
 
 const DEFAULTS = {
   minLines: 60,
@@ -64,6 +64,7 @@ function filter(input) {
   const lines = text.split('\n');
   if (lines.length < cfg.minLines) return null;
   const summary = summarize(lines, writeLog(command, text));
+  count('bash', (text.length - summary.length) / 4);
   return { hookSpecificOutput: { hookEventName: 'PostToolUse', updatedToolOutput: { ...res, stdout: summary, stderr: '' } } };
 }
 

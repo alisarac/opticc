@@ -20,4 +20,12 @@ function dataDir(name) {
   return dir;
 }
 
-module.exports = { settings, dataDir };
+// One line per opticc action for /opticc: {t, k: kind, n: tokens kept out or 1}.
+function count(k, n = 1) {
+  try {
+    const file = path.join(dataDir('counts'), new Date().toISOString().slice(0, 10) + '.jsonl');
+    fs.appendFileSync(file, JSON.stringify({ t: Date.now(), k, n: Math.round(n) }) + '\n', { mode: 0o600 });
+  } catch { /* counting must never break a hook */ }
+}
+
+module.exports = { settings, dataDir, count };

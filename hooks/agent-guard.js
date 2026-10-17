@@ -6,7 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { settings, dataDir } = require('./common');
+const { settings, dataDir, count } = require('./common');
 
 const FORK_AGAIN_MS = 60e3;
 const BIG_FILE_KB = 100;
@@ -43,6 +43,7 @@ function guard(input, now = Date.now()) {
     const mark = path.join(dataDir('agents'), crypto.createHash('sha1').update(t.prompt).digest('hex').slice(0, 16));
     try { if (now - fs.statSync(mark).mtimeMs < FORK_AGAIN_MS) { fs.unlinkSync(mark); return null; } } catch { /* first try */ }
     fs.writeFileSync(mark, '', { mode: 0o600 });
+    count('fork');
     return out({ permissionDecision: 'deny', permissionDecisionReason:
       '[opticc] Fork denied once: it re-sends this whole conversation on Opus every turn. Start a fresh agent (no subagent_type: fork) ' +
       'with a short self-contained brief instead. If the task truly needs this context, repeat the exact same call within a minute.' });
@@ -53,6 +54,7 @@ function guard(input, now = Date.now()) {
   const big = bigFiles(t.prompt, cwd, cfg.bigFileKB || BIG_FILE_KB);
   if (big.length) warn.push(`prompt names large files ${big.join(', ')}: the agent re-sends whatever it reads every turn, so point it at the lines or section it needs.`);
   if (!DELIVERABLE_RE.test(t.prompt)) warn.push('prompt does not say what to return: ask for a short result (e.g. "reply in ≤10 lines"), since the report lands in this context.');
+  if (warn.length) count('agentWarn');
   return warn.length ? out({ additionalContext: '[opticc] agent-guard: ' + warn.join(' ') }) : null;
 }
 
