@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `opticc` — Ali's personal Claude Code plugin for spending fewer tokens per correct change. `plugin-brief.md` (Turkish) is the spec; **its §0 (17 Oct 2026 revision, based on measured usage) overrides the rest**. Measured facts that drive priorities: ~98 % of usage is cache reads (context re-billed every request), subagents were 51 %, and Bash output is ~81 % of tool output entering context.
 
-v0.1 order: Bash output filter ✅ → screenshot shrinking ✅ → `agent-guard` → `/stats`. `bulk`/`worker` and rule injection are v0.2. The context-size warning already lives outside the plugin (`~/.claude/hooks/context-budget.py`) — don't duplicate it.
+v0.1 order: Bash output filter ✅ → screenshot shrinking ✅ → `agent-guard` ✅ → `/stats`. `bulk`/`worker` and rule injection are v0.2. The context-size warning already lives outside the plugin (`~/.claude/hooks/context-budget.py`) — don't duplicate it.
 
 ## Hard constraints
 
@@ -20,7 +20,9 @@ v0.1 order: Bash output filter ✅ → screenshot shrinking ✅ → `agent-guard
 - `.claude-plugin/plugin.json` + `marketplace.json` — the repo is both the plugin and its own local marketplace (`source: "./"`).
 - `hooks/hooks.json` — hook registrations, commands use `node "${CLAUDE_PLUGIN_ROOT}/hooks/<file>.js"`.
 - `hooks/bash-filter.js` — PostToolUse(Bash): for commands matching noisy patterns (gradle, flutter, adb logcat, npm/cargo build…) with ≥ 60 lines, writes the full output (mode 600, pruned after 7 days) to `$CLAUDE_PLUGIN_DATA/logs/` (fallback `~/.cache/opticc/logs/`) and replaces what Claude sees via `updatedToolOutput` with error lines + last 15 lines + log path. `# raw` in the command opts out.
-- `hooks/shrink-image.js` — PreToolUse(Read): for image files inside the project or the session scratchpad (elsewhere the rewrite would skip the permission prompt), ImageMagick with the coder forced from the extension (`identify`/`convert`) makes a copy at 50 % (long side never below 800 px) in `…/images/`, and `updatedInput` points Read at it. Reading the same unchanged file again within 10 min gets the original. `.opticc.json` `{"shrinkImages": {"off": true, "minSide": 800}}`. Each hook exports its pure logic for tests and only reads stdin under `require.main === module`.
+- `hooks/shrink-image.js` — PreToolUse(Read): for image files inside the project or the session scratchpad (elsewhere the rewrite would skip the permission prompt), ImageMagick with the coder forced from the extension (`identify`/`convert`) makes a copy at 50 % (long side never below 800 px) in `…/images/`, and `updatedInput` points Read at it. Reading the same unchanged file again within 10 min gets the original. `.opticc.json` `{"shrinkImages": {"off": true, "minSide": 800}}`.
+- `hooks/agent-guard.js` — PreToolUse(Agent|Task): denies a `fork` once (same prompt again within 60 s passes); warns via `additionalContext` on `model: opus`, on data files > 100 KB named in the prompt (json/csv/arb/yaml/md…, not under `build/` or dot dirs), and on prompts that don't say what to return. No parallel-count rule: 0 hits in a week. Tuned by replaying a week of transcripts: 2 of 224 calls warned. `.opticc.json` `{"agentGuard": {"off": true, "bigFileKB": 100}}`.
+- `hooks/common.js` — `settings(cwd, key)` and `dataDir(name)` shared by the hooks. Each hook exports its pure logic for tests and only reads stdin under `require.main === module`.
 
 ## Commands
 

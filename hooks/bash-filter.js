@@ -4,8 +4,8 @@
 // the log path. Any failure leaves the output untouched (fail open).
 'use strict';
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
+const { settings, dataDir } = require('./common');
 
 const DEFAULTS = {
   minLines: 60,
@@ -21,10 +21,8 @@ const TAIL = 15;
 const ERROR_RE = /\b(error|exception|failed|failure|fatal|panic|traceback)\b|^(E\/|e: )|✗|FAILURE:/i;
 
 function config(cwd) {
-  try {
-    const c = JSON.parse(fs.readFileSync(path.join(cwd, '.opticc.json'), 'utf8')).bashFilter || {};
-    return { off: c.off === true, minLines: c.minLines || DEFAULTS.minLines, patterns: DEFAULTS.patterns.concat(c.patterns || []) };
-  } catch { return { off: false, ...DEFAULTS }; }
+  const c = settings(cwd, 'bashFilter');
+  return { off: c.off === true, minLines: c.minLines || DEFAULTS.minLines, patterns: DEFAULTS.patterns.concat(c.patterns || []) };
 }
 
 function isNoisy(command, patterns) {
@@ -47,13 +45,7 @@ function summarize(lines, logPath) {
 }
 
 function writeLog(command, text) {
-  // per-user dir, owner-only: build logs can hold tokens and env values
-  const dir = path.join(process.env.CLAUDE_PLUGIN_DATA || path.join(os.homedir(), '.cache', 'opticc'), 'logs');
-  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const weekAgo = Date.now() - 7 * 864e5;
-  for (const f of fs.readdirSync(dir)) {
-    try { if (fs.statSync(path.join(dir, f)).mtimeMs < weekAgo) fs.unlinkSync(path.join(dir, f)); } catch { /* ignore */ }
-  }
+  const dir = dataDir('logs');  // owner-only: build logs can hold tokens and env values
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
   const slug = command.replace(/[^A-Za-z0-9]+/g, '-').slice(0, 40).replace(/^-|-$/g, '');
   const file = path.join(dir, `${stamp}-${slug}-${require('crypto').randomBytes(4).toString('hex')}.log`);

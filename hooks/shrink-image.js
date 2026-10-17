@@ -4,8 +4,8 @@
 // image again within 10 minutes gets the original. Fails open.
 'use strict';
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
+const { settings, dataDir } = require('./common');
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 
@@ -15,10 +15,8 @@ const MIN_SIDE = 800;           // never shrink the long side below this
 const FULL_AGAIN_MS = 10 * 60e3;
 
 function config(cwd) {
-  try {
-    const c = JSON.parse(fs.readFileSync(path.join(cwd, '.opticc.json'), 'utf8')).shrinkImages || {};
-    return { off: c.off === true, minSide: c.minSide || MIN_SIDE };
-  } catch { return { off: false, minSide: MIN_SIDE }; }
+  const c = settings(cwd, 'shrinkImages');
+  return { off: c.off === true, minSide: c.minSide || MIN_SIDE };
 }
 
 // Percentage to resize to, or null when the image is already small enough.
@@ -26,16 +24,6 @@ function scalePercent(w, h, minSide) {
   const long = Math.max(w, h);
   const pct = Math.round(100 * Math.max(long / 2, minSide) / long);
   return pct < 100 ? pct : null;
-}
-
-function cacheDir() {
-  const dir = path.join(process.env.CLAUDE_PLUGIN_DATA || path.join(os.homedir(), '.cache', 'opticc'), 'images');
-  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const weekAgo = Date.now() - 7 * 864e5;
-  for (const f of fs.readdirSync(dir)) {
-    try { if (fs.statSync(path.join(dir, f)).mtimeMs < weekAgo) fs.unlinkSync(path.join(dir, f)); } catch { /* ignore */ }
-  }
-  return dir;
 }
 
 // Only where Read needs no permission prompt anyway: the project and this
@@ -55,7 +43,7 @@ function shrink(input, now = Date.now()) {
   const cfg = config(cwd);
   if (cfg.off) return null;
   const st = fs.statSync(file);
-  const dir = cacheDir();
+  const dir = dataDir('images');
   const key = crypto.createHash('sha1').update(`${file}\0${st.size}\0${st.mtimeMs}`).digest('hex').slice(0, 16);
   const copy = path.join(dir, key + path.extname(file).toLowerCase());
   const seen = path.join(dir, key + '.seen');
