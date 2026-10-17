@@ -4,6 +4,9 @@
       { "matcher": "Agent|Task", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/agent-guard.js\"", "timeout": 5 }] },
       { "matcher": "Read", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/shrink-image.js\"", "timeout": 5 }] }
     ],
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/project-switch.js\"", "timeout": 5 }] }
+    ],
     "PostToolUse": [
       { "matcher": "Bash", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/bash-filter.js\"", "timeout": 5 }] }
     ]

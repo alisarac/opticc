@@ -130,6 +130,7 @@ function report([a, b], counts) {
     `  images shrunk              ${String(c('image').times).padStart(4)}×  ~${fmt(c('image').n)} tokens kept out`,
     `  forks denied               ${String(c('fork').times).padStart(4)}×`,
     `  agent prompts warned       ${String(c('agentWarn').times).padStart(4)}×`,
+    `  project switches flagged   ${String(c('switch').times).padStart(4)}×`,
     '', 'costliest sessions (last 7)', ...rows(a.sessions, a.total),
     '', 'costliest projects (last 7)', ...rows(a.projects, a.total),
   ];
