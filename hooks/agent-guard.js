@@ -52,7 +52,7 @@ function guard(input, now = Date.now()) {
   const warn = [];
   if (/opus/i.test(t.model || '')) warn.push('model is Opus: use Sonnet unless the task really needs Opus.');
   const big = bigFiles(t.prompt, cwd, cfg.bigFileKB || BIG_FILE_KB);
-  if (big.length) warn.push(`prompt names large files ${big.join(', ')}: the agent re-sends whatever it reads every turn, so point it at the lines or section it needs.`);
+  if (big.length) warn.push(`prompt names large files ${big.join(', ')}: the agent re-sends whatever it reads every turn, so point it at the lines or section it needs, or for a transform over the whole file use the opticc bulk skill.`);
   if (!DELIVERABLE_RE.test(t.prompt)) warn.push('prompt does not say what to return: ask for a short result (e.g. "reply in ≤10 lines"), since the report lands in this context.');
   if (warn.length) count('agentWarn');
   return warn.length ? out({ additionalContext: '[opticc] agent-guard: ' + warn.join(' ') }) : null;
