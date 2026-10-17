@@ -10,7 +10,8 @@ Smallest complete change. Before adding code ask, in order: is it needed at all;
 Never cut: validation at trust boundaries, error handling that prevents data loss, security, accessibility, anything the user asked for.
 Branching, loops, parsers, money or security logic get one small test. A deliberate shortcut gets a comment: \`shortcut: <its limit>, <when to upgrade>\`.
 Reading: grep first, then read only the line range you need; never re-read a file you just edited.
-Replies: short and plain; say what you did not check.`;
+Replies: short and plain; say what you did not check.
+Given a list of independent tasks: finish and commit one, then suggest /clear with a short handoff before the next; context grows ~1.5k tokens per step.`;
 
 // Returns the hook's JSON output, or null when nothing should be added.
 function inject(input) {
