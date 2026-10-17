@@ -47,12 +47,17 @@ function summarize(lines, logPath) {
 }
 
 function writeLog(command, text) {
-  const dir = path.join(os.tmpdir(), 'opticc-logs');
-  fs.mkdirSync(dir, { recursive: true });
+  // per-user dir, owner-only: build logs can hold tokens and env values
+  const dir = path.join(process.env.CLAUDE_PLUGIN_DATA || path.join(os.homedir(), '.cache', 'opticc'), 'logs');
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const weekAgo = Date.now() - 7 * 864e5;
+  for (const f of fs.readdirSync(dir)) {
+    try { if (fs.statSync(path.join(dir, f)).mtimeMs < weekAgo) fs.unlinkSync(path.join(dir, f)); } catch { /* ignore */ }
+  }
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
   const slug = command.replace(/[^A-Za-z0-9]+/g, '-').slice(0, 40).replace(/^-|-$/g, '');
-  const file = path.join(dir, `${stamp}-${slug}-${process.pid}.log`);
-  fs.writeFileSync(file, `$ ${command}\n${text}`);
+  const file = path.join(dir, `${stamp}-${slug}-${require('crypto').randomBytes(4).toString('hex')}.log`);
+  fs.writeFileSync(file, `$ ${command}\n${text}`, { flag: 'wx', mode: 0o600 });
   return file;
 }
 

@@ -19,7 +19,7 @@ v0.1 order: Bash output filter ✅ → screenshot shrinking → `agent-guard` �
 
 - `.claude-plugin/plugin.json` + `marketplace.json` — the repo is both the plugin and its own local marketplace (`source: "./"`).
 - `hooks/hooks.json` — hook registrations, commands use `node "${CLAUDE_PLUGIN_ROOT}/hooks/<file>.js"`.
-- `hooks/bash-filter.js` — PostToolUse(Bash): for commands matching noisy patterns (gradle, flutter, adb logcat, npm/cargo build…) with ≥ 60 lines, writes the full output to `$TMPDIR/opticc-logs/` and replaces what Claude sees via `updatedToolOutput` with error lines + last 15 lines + log path. `# raw` in the command opts out. Each hook exports its pure logic for tests and only reads stdin under `require.main === module`.
+- `hooks/bash-filter.js` — PostToolUse(Bash): for commands matching noisy patterns (gradle, flutter, adb logcat, npm/cargo build…) with ≥ 60 lines, writes the full output (mode 600, pruned after 7 days) to `$CLAUDE_PLUGIN_DATA/logs/` (fallback `~/.cache/opticc/logs/`) and replaces what Claude sees via `updatedToolOutput` with error lines + last 15 lines + log path. `# raw` in the command opts out. Each hook exports its pure logic for tests and only reads stdin under `require.main === module`.
 
 ## Commands
 
