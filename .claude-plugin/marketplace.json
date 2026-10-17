@@ -1,0 +1,5 @@
+{
+  "name": "opticc",
+  "owner": { "name": "Ali Saraç" },
+  "plugins": [{ "name": "opticc", "source": "./", "description": "Token-frugal Claude Code helpers" }]
+}

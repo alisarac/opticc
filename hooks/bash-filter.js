@@ -1,0 +1,82 @@
+#!/usr/bin/env node
+// PostToolUse(Bash): when a noisy build/test/log command prints a lot, keep the
+// full output in a log file and hand Claude only the error lines, the tail and
+// the log path. Any failure leaves the output untouched (fail open).
+'use strict';
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+const DEFAULTS = {
+  minLines: 60,
+  patterns: [
+    'gradlew?', 'flutter\\s+(build|run|test|pub|analyze|doctor|drive)', 'dart\\s+(pub|analyze|test)',
+    'adb\\s+(logcat|install)', '(npm|pnpm|yarn|bun)\\s+(install|ci|i|test|run\\s+(build|test|lint))',
+    'cargo\\s+(build|test|check|clippy)', 'go\\s+(build|test)', 'pytest', 'pip3?\\s+install',
+    'make\\b', 'docker\\s+(build|compose)', 'tsc\\b', 'next\\s+build', 'xcodebuild', 'pod\\s+install',
+  ],
+};
+const MAX_ERRORS = 20;
+const TAIL = 15;
+const ERROR_RE = /\b(error|exception|failed|failure|fatal|panic|traceback)\b|^(E\/|e: )|✗|FAILURE:/i;
+
+function config(cwd) {
+  try {
+    const c = JSON.parse(fs.readFileSync(path.join(cwd, '.opticc.json'), 'utf8')).bashFilter || {};
+    return { off: c.off === true, minLines: c.minLines || DEFAULTS.minLines, patterns: DEFAULTS.patterns.concat(c.patterns || []) };
+  } catch { return { off: false, ...DEFAULTS }; }
+}
+
+function isNoisy(command, patterns) {
+  if (/#\s*raw\b/.test(command)) return false;  // escape hatch: append "# raw" to get the full output
+  return patterns.some(p => new RegExp(`(^|[\\s;&|(/])${p}`).test(command));
+}
+
+function clean(text) {
+  // drop ANSI colours; keep only the last frame of \r-redrawn progress lines
+  return text.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '')
+    .split('\n').map(l => l.slice(l.lastIndexOf('\r') + 1)).join('\n');
+}
+
+function summarize(lines, logPath) {
+  const errors = [...new Set(lines.filter(l => ERROR_RE.test(l)).map(l => l.trim().slice(0, 200)))];
+  const out = [`[opticc] ${lines.length} lines shortened · full log: ${logPath} (grep it, or rerun with "# raw")`];
+  if (errors.length) out.push(`-- error lines (${Math.min(errors.length, MAX_ERRORS)} of ${errors.length}):`, ...errors.slice(0, MAX_ERRORS));
+  out.push(`-- last ${TAIL} lines:`, ...lines.slice(-TAIL));
+  return out.join('\n');
+}
+
+function writeLog(command, text) {
+  const dir = path.join(os.tmpdir(), 'opticc-logs');
+  fs.mkdirSync(dir, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
+  const slug = command.replace(/[^A-Za-z0-9]+/g, '-').slice(0, 40).replace(/^-|-$/g, '');
+  const file = path.join(dir, `${stamp}-${slug}-${process.pid}.log`);
+  fs.writeFileSync(file, `$ ${command}\n${text}`);
+  return file;
+}
+
+// Returns the hook's JSON output, or null to leave the tool output as it is.
+function filter(input) {
+  const command = input.tool_input && input.tool_input.command;
+  const res = input.tool_response;
+  if (typeof command !== 'string' || !res || typeof res.stdout !== 'string' || res.isImage) return null;
+  const cfg = config(input.cwd || process.cwd());
+  if (cfg.off || !isNoisy(command, cfg.patterns)) return null;
+  const text = clean([res.stdout, res.stderr].filter(Boolean).join('\n')).replace(/\n+$/, '');
+  const lines = text.split('\n');
+  if (lines.length < cfg.minLines) return null;
+  const summary = summarize(lines, writeLog(command, text));
+  return { hookSpecificOutput: { hookEventName: 'PostToolUse', updatedToolOutput: { ...res, stdout: summary, stderr: '' } } };
+}
+
+if (require.main === module) {
+  let data = '';
+  process.stdin.on('data', d => { data += d; }).on('end', () => {
+    try {
+      const out = filter(JSON.parse(data));
+      if (out) process.stdout.write(JSON.stringify(out));
+    } catch { /* fail open */ }
+  });
+}
+module.exports = { filter, isNoisy, clean, DEFAULTS };
