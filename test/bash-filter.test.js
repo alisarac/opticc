@@ -38,7 +38,7 @@ test('long noisy output is shortened to errors + tail, full text logged', () => 
 
 test('short output, plain commands and odd input are left alone', () => {
   assert.strictEqual(filter(input('./gradlew build', rows(10))), null);
-  assert.strictEqual(filter(input('cat big.txt', rows(500))), null);
+  assert.strictEqual(filter(input('cat big.txt', rows(200))), null);
   assert.strictEqual(filter({ tool_input: { command: 'make' } }), null);
   assert.strictEqual(filter(input('make', '', { isImage: true })), null);
 });
@@ -58,4 +58,14 @@ test('as a process: bad stdin exits 0 with no output', () => {
   const r = spawnSync('node', [HOOK], { input: 'not json', encoding: 'utf8' });
   assert.strictEqual(r.status, 0);
   assert.strictEqual(r.stdout, '');
+});
+
+test('a huge plain dump keeps its first maxLines and points at the log', () => {
+  const out = filter(input('cat big.dart', rows(450))).hookSpecificOutput.updatedToolOutput.stdout.split('\n');
+  assert.strictEqual(out.length, DEFAULTS.maxLines + 1);
+  assert.strictEqual(out[DEFAULTS.maxLines - 1], `row ${DEFAULTS.maxLines - 1}`);
+  assert.match(out.at(-1), /150 more lines cut .* full output: (\S+\.log)/);
+  assert.strictEqual(fs.readFileSync(out.at(-1).match(/full output: (\S+\.log)/)[1], 'utf8').split('\n').length, 451);
+  assert.strictEqual(filter(input('cat big.dart', rows(DEFAULTS.maxLines))), null, 'at the limit stays whole');
+  assert.strictEqual(filter(input('cat big.dart # raw', rows(450))), null);
 });

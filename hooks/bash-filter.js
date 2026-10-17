@@ -9,6 +9,7 @@ const { settings, dataDir, count } = require('./common');
 
 const DEFAULTS = {
   minLines: 60,
+  maxLines: 300,  // any other command: only the first maxLines reach Claude
   patterns: [
     'gradlew?', 'flutter\\s+(build|run|test|pub|analyze|doctor|drive)', 'dart\\s+(pub|analyze|test)',
     'adb\\s+(logcat|install)', '(npm|pnpm|yarn|bun)\\s+(install|ci|i|test|run\\s+(build|test|lint))',
@@ -22,7 +23,7 @@ const ERROR_RE = /\b(error|exception|failed|failure|fatal|panic|traceback)\b|^(E
 
 function config(cwd) {
   const c = settings(cwd, 'bashFilter');
-  return { off: c.off === true, minLines: c.minLines || DEFAULTS.minLines, patterns: DEFAULTS.patterns.concat(c.patterns || []) };
+  return { off: c.off === true, minLines: c.minLines || DEFAULTS.minLines, maxLines: c.maxLines || DEFAULTS.maxLines, patterns: DEFAULTS.patterns.concat(c.patterns || []) };
 }
 
 function isNoisy(command, patterns) {
@@ -59,11 +60,15 @@ function filter(input) {
   const res = input.tool_response;
   if (typeof command !== 'string' || !res || typeof res.stdout !== 'string' || res.isImage) return null;
   const cfg = config(input.cwd || process.cwd());
-  if (cfg.off || !isNoisy(command, cfg.patterns)) return null;
+  if (cfg.off || /#\s*raw\b/.test(command)) return null;
+  const noisy = isNoisy(command, cfg.patterns);
   const text = clean([res.stdout, res.stderr].filter(Boolean).join('\n')).replace(/\n+$/, '');
   const lines = text.split('\n');
-  if (lines.length < cfg.minLines) return null;
-  const summary = summarize(lines, writeLog(command, text));
+  if (lines.length < (noisy ? cfg.minLines : cfg.maxLines + 1)) return null;
+  // a big file dump (cat/sed/grep…) was wanted, so keep its start rather than an error summary
+  const summary = noisy ? summarize(lines, writeLog(command, text)) : lines.slice(0, cfg.maxLines).concat(
+    `[opticc] ${lines.length - cfg.maxLines} more lines cut (${lines.length} in all) · full output: ${writeLog(command, text)} ` +
+    '(read the range you need from it, or rerun with "# raw")').join('\n');
   count('bash', (text.length - summary.length) / 4);
   return { hookSpecificOutput: { hookEventName: 'PostToolUse', updatedToolOutput: { ...res, stdout: summary, stderr: '' } } };
 }

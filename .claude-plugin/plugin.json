@@ -1,6 +1,6 @@
 {
   "name": "opticc",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Spend fewer tokens per correct change: shortens noisy build/test output, guards subagent use, measures usage, chunks bulk JSON jobs for cheap workers.",
   "license": "MIT"
 }
