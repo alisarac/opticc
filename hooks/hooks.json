@@ -4,6 +4,12 @@
       { "matcher": "Agent|Task", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/agent-guard.js\"", "timeout": 5 }] },
       { "matcher": "Read", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/shrink-image.js\"", "timeout": 5 }] }
     ],
+    "SessionStart": [
+      { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/rules.js\"", "timeout": 5 }] }
+    ],
+    "SubagentStart": [
+      { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/rules.js\"", "timeout": 5 }] }
+    ],
     "UserPromptSubmit": [
       { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/project-switch.js\"", "timeout": 5 }] }
     ],
