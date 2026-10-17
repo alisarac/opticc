@@ -9,7 +9,8 @@ const path = require('path');
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 
-const EXT_RE = /\.(png|jpe?g|webp|gif|bmp)$/i;
+// extension -> ImageMagick coder, forced so a disguised file (SVG/MVG/text) is never sniffed
+const CODERS = { png: 'png', jpg: 'jpeg', jpeg: 'jpeg', webp: 'webp', gif: 'gif', bmp: 'bmp' };
 const MIN_SIDE = 800;           // never shrink the long side below this
 const FULL_AGAIN_MS = 10 * 60e3;
 
@@ -37,25 +38,34 @@ function cacheDir() {
   return dir;
 }
 
+// Only where Read needs no permission prompt anyway: the project and this
+// session's scratchpad. Elsewhere the rewrite would skip the user's prompt.
+function allowed(file, cwd) {
+  const scratch = path.join('/tmp', `claude-${process.getuid()}`, cwd.replace(/[^A-Za-z0-9]/g, '-'));
+  return [cwd, scratch].some(root => file.startsWith(root + path.sep));
+}
+
 // Returns the hook's JSON output, or null to let Read see the original file.
 function shrink(input, now = Date.now()) {
   const file = input.tool_input && input.tool_input.file_path;
-  if (typeof file !== 'string' || !EXT_RE.test(file)) return null;
-  const cfg = config(input.cwd || process.cwd());
+  if (typeof file !== 'string' || !path.isAbsolute(file)) return null;
+  const coder = CODERS[path.extname(file).slice(1).toLowerCase()];
+  const cwd = input.cwd || process.cwd();
+  if (!coder || !allowed(fs.realpathSync(file), cwd)) return null;
+  const cfg = config(cwd);
   if (cfg.off) return null;
   const st = fs.statSync(file);
   const dir = cacheDir();
-  if (file.startsWith(dir + path.sep)) return null;
   const key = crypto.createHash('sha1').update(`${file}\0${st.size}\0${st.mtimeMs}`).digest('hex').slice(0, 16);
   const copy = path.join(dir, key + path.extname(file).toLowerCase());
   const seen = path.join(dir, key + '.seen');
   // a second look at the same image means the small one was not enough
   try { if (now - fs.statSync(seen).mtimeMs < FULL_AGAIN_MS) { fs.unlinkSync(seen); return null; } } catch { /* first look */ }
-  const [w, h] = execFileSync('identify', ['-format', '%w %h', file + '[0]'], { timeout: 3000 }).toString().split(' ').map(Number);
+  const [w, h] = execFileSync('identify', ['-format', '%w %h', `${coder}:${file}[0]`], { timeout: 3000 }).toString().split(' ').map(Number);
   const pct = scalePercent(w, h, cfg.minSide);
   if (!pct) return null;
   if (!fs.existsSync(copy)) {
-    execFileSync('convert', [file + '[0]', '-resize', pct + '%', copy], { timeout: 4000 });
+    execFileSync('convert', [`${coder}:${file}[0]`, '-resize', pct + '%', `${coder}:${copy}`], { timeout: 4000 });
     fs.chmodSync(copy, 0o600);
   }
   fs.writeFileSync(seen, '', { mode: 0o600 });

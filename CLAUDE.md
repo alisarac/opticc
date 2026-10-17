@@ -20,7 +20,7 @@ v0.1 order: Bash output filter ✅ → screenshot shrinking ✅ → `agent-guard
 - `.claude-plugin/plugin.json` + `marketplace.json` — the repo is both the plugin and its own local marketplace (`source: "./"`).
 - `hooks/hooks.json` — hook registrations, commands use `node "${CLAUDE_PLUGIN_ROOT}/hooks/<file>.js"`.
 - `hooks/bash-filter.js` — PostToolUse(Bash): for commands matching noisy patterns (gradle, flutter, adb logcat, npm/cargo build…) with ≥ 60 lines, writes the full output (mode 600, pruned after 7 days) to `$CLAUDE_PLUGIN_DATA/logs/` (fallback `~/.cache/opticc/logs/`) and replaces what Claude sees via `updatedToolOutput` with error lines + last 15 lines + log path. `# raw` in the command opts out.
-- `hooks/shrink-image.js` — PreToolUse(Read): for image files, ImageMagick (`identify`/`convert`) makes a copy at 50 % (long side never below 800 px) in `…/images/`, and `updatedInput` points Read at it. Reading the same unchanged file again within 10 min gets the original. `.opticc.json` `{"shrinkImages": {"off": true, "minSide": 800}}`. Each hook exports its pure logic for tests and only reads stdin under `require.main === module`.
+- `hooks/shrink-image.js` — PreToolUse(Read): for image files inside the project or the session scratchpad (elsewhere the rewrite would skip the permission prompt), ImageMagick with the coder forced from the extension (`identify`/`convert`) makes a copy at 50 % (long side never below 800 px) in `…/images/`, and `updatedInput` points Read at it. Reading the same unchanged file again within 10 min gets the original. `.opticc.json` `{"shrinkImages": {"off": true, "minSide": 800}}`. Each hook exports its pure logic for tests and only reads stdin under `require.main === module`.
 
 ## Commands
 
