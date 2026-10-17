@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`opticc` — Ali's personal Claude Code plugin for spending fewer tokens per correct change. `plugin-brief.md` (Turkish) is the spec; **its §0 (17 Oct 2026 revision, based on measured usage) overrides the rest**. Measured facts that drive priorities: ~98 % of usage is cache reads (context re-billed every request), subagents were 51 %, and Bash output is ~81 % of tool output entering context.
+`opticc` — Ali's personal Claude Code plugin for spending fewer tokens per correct change. `plugin-brief.md` (Turkish, local only — gitignored, not in the public repo) is the spec; **its §0 (17 Oct 2026 revision, based on measured usage) overrides the rest**. Measured facts that drive priorities: ~98 % of usage is cache reads (context re-billed every request), subagents were 51 %, and Bash output is ~81 % of tool output entering context.
 
 v0.1 order: Bash output filter ✅ → screenshot shrinking ✅ → `agent-guard` ✅ → `/opticc` report ✅. v0.2: `bulk`/`worker` ✅, rule injection ✅ (then Ponytail off and compare). The context-size warning already lives outside the plugin (`~/.claude/hooks/context-budget.py`) — don't duplicate it.
 
