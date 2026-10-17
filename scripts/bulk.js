@@ -1,7 +1,7 @@
 // bulk: split selected JSON values into small chunk files for worker agents, then write their results back
 // into the source without touching its layout.
 //   node bulk.js chunk <src.json> <pattern> <workdir> [--to <key> | --into <other.json>] [--all]
-//   node bulk.js merge <workdir>
+//   node bulk.js merge <workdir> <src.json> [<other.json>]
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -116,8 +116,11 @@ function place(map, id, body) {
   return last && { at: last.end, end: last.end, body: `,${last.lead}${JSON.stringify(id.slice(cut + 1))}: ${body}` };
 }
 
-function merge(dir) {
+// Workers can write into dir, so the manifest is not trusted to name the files merge writes or reads.
+function merge(dir, src, into) {
   const m = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'));
+  if (path.resolve(src) !== m.src || (into ? path.resolve(into) : null) !== m.into) throw new Error('files given to merge differ from the ones chunked');
+  if (!m.chunks.every(c => /^chunk-\d{3}\.json$/.test(c.in) && c.out === c.in.replace('chunk', 'out'))) throw new Error('manifest has unexpected chunk names');
   const text = fs.readFileSync(m.src, 'utf8');
   if (sha(text) !== m.hash) throw new Error(`${m.src} changed since chunking: chunk again`);
   const dest = m.into || m.src, dtext = m.into ? fs.readFileSync(dest, 'utf8') : text;
@@ -164,11 +167,11 @@ if (require.main === module) {
       console.log(`style: ${cfg.style ? path.resolve(cfg.style) : 'none (set bulk.style in .opticc.json)'}`);
       for (const c of m.chunks) console.log(`${c.in} → ${c.out} (${c.n})`);
     } else if (cmd === 'merge') {
-      const r = merge(args[0]);
+      const r = merge(...args);
       console.log(`merged ${r.merged}/${r.total}` + (r.bad.length ? `; bad or missing: ${r.bad.slice(0, 10).join(', ')}${r.bad.length > 10 ? ' …' : ''}` : '') +
         (r.retry.length ? `; retry: ${r.retry.join(' ')}` : ''));
     } else {
-      console.log('usage: bulk.js chunk <src.json> <pattern> <workdir> [--to <key> | --into <other.json>] [--all] | bulk.js merge <workdir>');
+      console.log('usage: bulk.js chunk <src.json> <pattern> <workdir> [--to <key> | --into <other.json>] [--all] | bulk.js merge <workdir> <src.json> [<other.json>]');
       process.exitCode = 2;
     }
   } catch (e) { console.error('bulk: ' + e.message); process.exitCode = 1; }

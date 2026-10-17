@@ -40,7 +40,7 @@ test('only missing targets are chunked; merge fills or adds them and keeps the l
   const m = chunk(src, '*.*.en', work, { to: 'tr' });
   assert.strictEqual(m.total, 2, 'two.up already has tr');
   answer(work, m);
-  assert.deepStrictEqual(merge(work), { merged: 2, total: 2, bad: [], retry: [] });
+  assert.deepStrictEqual(merge(work, src), { merged: 2, total: 2, bad: [], retry: [] });
   assert.strictEqual(fs.readFileSync(src, 'utf8'), SRC
     .replace('"tr": []', '"tr": ["A SPARK \\"HERE\\".", "FRESH ENERGY."]')
     .replace(`"Stalled."
@@ -59,26 +59,31 @@ test('small chunks split; a missing or misshapen answer is reported and not writ
   answer(work, m, v => v.slice(0, 1).map(s => s.toLowerCase()));
   fs.writeFileSync(path.join(work, m.chunks[1].out), JSON.stringify({ 'ace.down.en': ['Delays.', 'Stalled.'].map(s => s.toLowerCase()) }));
   fs.unlinkSync(path.join(work, m.chunks[2].out));
-  const r = merge(work);
+  const r = merge(work, src);
   assert.deepStrictEqual(r, { merged: 1, total: 3, bad: ['ace.up.en'], retry: ['chunk-001.json', 'chunk-003.json'] });
   assert.match(fs.readFileSync(src, 'utf8'), /"Stalled\."\n {8}\],\n {8}"tr": \[\n {10}"delays\.",\n {10}"stalled\."\n {8}\]/);
   answer(work, m); // retry: the manifest now lists only chunks 1 and 3
-  assert.deepStrictEqual(merge(work), { merged: 2, total: 2, bad: [], retry: [] });
+  assert.deepStrictEqual(merge(work, src), { merged: 2, total: 2, bad: [], retry: [] });
   assert.match(fs.readFileSync(src, 'utf8'), /"tr": \["A SPARK \\"HERE\\".", "FRESH ENERGY."\]/);
 });
 
 test('in-place transform without --to', () => {
   const { src, work } = setup();
   answer(work, chunk(src, 'two.up.tr', work));
-  merge(work);
+  merge(work, src);
   assert.match(fs.readFileSync(src, 'utf8'), /"tr": \["PLANLAMA\."\]/);
 });
 
-test('merge stops when the source changed after chunking', () => {
+test('merge refuses other files, odd chunk names and a changed source', () => {
   const { src, work } = setup();
   answer(work, chunk(src, '*.*.en', work, { to: 'tr' }));
+  assert.throws(() => merge(work, path.join(work, 'x.json')), /differ from the ones chunked/);
+  const mf = path.join(work, 'manifest.json'), m = JSON.parse(fs.readFileSync(mf, 'utf8'));
+  fs.writeFileSync(mf, JSON.stringify({ ...m, chunks: [{ in: '../../x.json', out: 'out-001.json', n: 1 }] }));
+  assert.throws(() => merge(work, src), /unexpected chunk names/);
+  fs.writeFileSync(mf, JSON.stringify(m));
   fs.appendFileSync(src, ' ');
-  assert.throws(() => merge(work), /changed since chunking/);
+  assert.throws(() => merge(work, src), /changed since chunking/);
 });
 
 test('--into fills an ARB file: missing keys appended, @metadata skipped, lost placeholders rejected', () => {
@@ -89,12 +94,12 @@ test('--into fills an ARB file: missing keys appended, @metadata skipped, lost p
   const m = chunk(en, '*', work, { into: de });
   assert.deepStrictEqual(Object.keys(JSON.parse(fs.readFileSync(path.join(work, m.chunks[0].in), 'utf8'))), ['spent', 'bye']);
   fs.writeFileSync(path.join(work, m.chunks[0].out), JSON.stringify({ spent: '{app}', bye: 'Tschüss' }));
-  assert.deepStrictEqual(merge(work), { merged: 1, total: 2, bad: ['spent'], retry: ['chunk-001.json'] });
+  assert.deepStrictEqual(merge(work, en, de), { merged: 1, total: 2, bad: ['spent'], retry: ['chunk-001.json'] });
   assert.strictEqual(fs.readFileSync(de, 'utf8'), '{\n  "@@locale": "de",\n  "hi": "Hallo",\n  "bye": "Tschüss"\n}\n');
   fs.writeFileSync(de, '{\n  "hi": "Hallo"\n}\n'); // two appends at one spot keep source order
   chunk(en, '*', work, { into: de });
   fs.writeFileSync(path.join(work, 'out-001.json'), JSON.stringify({ spent: '{app}, {spent}', bye: 'Tschüss' }));
-  merge(work);
+  merge(work, en, de);
   assert.strictEqual(fs.readFileSync(de, 'utf8'), '{\n  "hi": "Hallo",\n  "spent": "{app}, {spent}",\n  "bye": "Tschüss"\n}\n');
   assert.ok(fs.readFileSync(en, 'utf8').includes('"bye": "Bye"'), 'source untouched');
 });
